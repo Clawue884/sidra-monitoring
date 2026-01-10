@@ -129,24 +129,15 @@ Always provide actionable recommendations."""
         """Discover a single host."""
         logger.info(f"Discovering host: {host_ip}")
 
-        from ..utils import SSHClient, SSHCredentials
+        from ..utils import SSHConnectionPool
 
-        # Try to connect
-        creds = SSHCredentials(
-            host=host_ip,
-            username=settings.ssh_user,
-            password=settings.ssh_password,
-        )
-        ssh = SSHClient(creds)
+        # Use connection pool which tries multiple credentials
+        pool = SSHConnectionPool()
+        ssh = await pool.try_connect(host_ip)
 
-        if not await ssh.connect():
-            # Try alternative credentials
-            creds.username = settings.ssh_alt_user
-            creds.password = settings.ssh_alt_password
-            ssh = SSHClient(creds)
-            if not await ssh.connect():
-                logger.warning(f"Could not connect to {host_ip}")
-                return
+        if not ssh:
+            logger.warning(f"Could not connect to {host_ip}")
+            return
 
         try:
             # Server discovery
@@ -178,7 +169,7 @@ Always provide actionable recommendations."""
             analysis.services.append(service_discovery.to_dict(service_report))
 
         finally:
-            await ssh.disconnect()
+            await pool.close_all()
 
     async def _analyze_infrastructure(self, analysis: InfrastructureAnalysis):
         """Use AI to analyze the infrastructure."""
@@ -324,16 +315,13 @@ Return as a simple list of recommendations."""
         """Quick scan of a single host."""
         logger.info(f"Quick scan of {host}")
 
-        from ..utils import SSHClient, SSHCredentials
+        from ..utils import SSHClient, SSHCredentials, SSHConnectionPool
 
-        creds = SSHCredentials(
-            host=host,
-            username=settings.ssh_user,
-            password=settings.ssh_password,
-        )
-        ssh = SSHClient(creds)
+        # Use connection pool which tries multiple credentials
+        pool = SSHConnectionPool()
+        ssh = await pool.try_connect(host)
 
-        if not await ssh.connect():
+        if not ssh:
             return {"error": f"Could not connect to {host}"}
 
         try:
@@ -341,7 +329,7 @@ Return as a simple list of recommendations."""
             server_info = await server_discovery.discover()
             return server_discovery.to_dict(server_info)
         finally:
-            await ssh.disconnect()
+            await pool.close_all()
 
     def to_dict(self, analysis: InfrastructureAnalysis) -> dict:
         """Convert analysis to dictionary."""
