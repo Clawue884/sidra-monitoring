@@ -583,10 +583,17 @@ Issues: {issues_text if issues_text else 'None'}"""
             timestamp = a.get("timestamp", "")
             if timestamp:
                 try:
-                    ts = datetime.fromisoformat(timestamp.replace("Z", "+00:00"))
-                    timestamp = ts.strftime("%H:%M:%S")
+                    if isinstance(timestamp, (int, float)):
+                        # Unix timestamp
+                        ts = datetime.fromtimestamp(timestamp)
+                        timestamp = ts.strftime("%H:%M:%S")
+                    elif isinstance(timestamp, str):
+                        ts = datetime.fromisoformat(timestamp.replace("Z", "+00:00"))
+                        timestamp = ts.strftime("%H:%M:%S")
+                    else:
+                        timestamp = str(timestamp)[:19]
                 except:
-                    timestamp = timestamp[:19]
+                    timestamp = str(timestamp)[:19] if timestamp else ""
             alert_rows += f"""
             <tr>
                 <td><span class="severity-badge" style="background: {color}">{severity.upper()}</span></td>
