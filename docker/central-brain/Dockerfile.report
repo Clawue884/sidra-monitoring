@@ -1,0 +1,13 @@
+FROM python:3.11-slim
+
+WORKDIR /app
+
+# Install dependencies
+RUN pip install --no-cache-dir fastapi uvicorn aiohttp
+
+# Copy the report API
+COPY src/central/report_api.py /app/report_api.py
+
+EXPOSE 8201
+
+CMD ["python", "report_api.py"]

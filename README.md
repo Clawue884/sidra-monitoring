@@ -1,264 +1,257 @@
-# DevOps Agent
+# Sidra Infrastructure Monitor
 
-AI-powered DevOps agent for infrastructure discovery, monitoring, documentation, and automation. Uses local Ollama for intelligent analysis and recommendations.
+AI-powered infrastructure monitoring system with LLM analysis, real-time dashboards, and multi-network support. Uses local Ollama (Devstral) for intelligent analysis and recommendations.
+
+## Architecture
+
+```
+┌─────────────────────────────────────────────────────────────────────────┐
+│                        Central Brain (server045)                         │
+│                         192.168.92.145                                   │
+├─────────────────────────────────────────────────────────────────────────┤
+│  ┌──────────────┐  ┌──────────────┐  ┌──────────────┐  ┌─────────────┐ │
+│  │VictoriaMetrics│  │  OpenObserve │  │   Grafana    │  │ Uptime Kuma │ │
+│  │   :8428      │  │    :5080     │  │    :3000     │  │    :3001    │ │
+│  │  (Metrics)   │  │   (Logs)     │  │ (Dashboards) │  │  (Status)   │ │
+│  └──────────────┘  └──────────────┘  └──────────────┘  └─────────────┘ │
+│                                                                          │
+│  ┌──────────────┐  ┌──────────────┐  ┌──────────────┐                   │
+│  │  Ingest API  │  │  Report API  │  │    Ollama    │                   │
+│  │   :8200      │  │    :8201     │  │   :11434     │                   │
+│  │ (Collector)  │  │(LLM Dashboard)│  │  (Devstral)  │                   │
+│  └──────────────┘  └──────────────┘  └──────────────┘                   │
+└─────────────────────────────────────────────────────────────────────────┘
+                                  ▲
+                                  │ HTTPS/Metrics
+        ┌─────────────────────────┼─────────────────────────┐
+        │                         │                         │
+        ▼                         ▼                         ▼
+┌───────────────┐        ┌───────────────┐        ┌───────────────┐
+│  Edge Agent   │        │  Edge Agent   │        │  Edge Agent   │
+│  (server004)  │        │  (server041)  │        │  (server043)  │
+│   Compute     │        │   GPU: 4090   │        │   GPU: 5090   │
+└───────────────┘        └───────────────┘        └───────────────┘
+     Sidra-91                  Sidra-92                 Sidra-92
+```
 
 ## Features
 
-- **Network Discovery**: Scan networks and discover hosts, open ports, services
-- **Server Analysis**: Deep inspection of servers (CPU, memory, disk, processes)
-- **Docker Discovery**: Discover containers, services, swarm configuration
-- **Database Detection**: Find PostgreSQL, MySQL, MongoDB, Redis instances
-- **Storage Analysis**: Discover GlusterFS, NFS, LVM configurations
-- **AI-Powered Documentation**: Generate comprehensive infrastructure docs
-- **Continuous Monitoring**: Real-time monitoring with alerting
-- **Security Analysis**: Identify vulnerabilities and misconfigurations
+### 🖥️ Infrastructure Monitoring
+- **Multi-Network Support**: Monitor 192.168.91.x, 192.168.92.x, and additional networks
+- **GPU Monitoring**: NVIDIA GPU temp, utilization, memory (RTX 4090, 5070 Ti, 5090)
+- **System Metrics**: CPU, Memory, Disk, Load Average, Network I/O
+- **Service Monitoring**: Docker containers, systemd services
+
+### 🤖 AI-Powered Analysis
+- **LLM Summaries**: Devstral model generates real-time infrastructure reports
+- **Issue Detection**: Automatic identification of critical issues
+- **Recommendations**: AI-powered suggestions for optimization
+
+### 📊 Dashboards
+- **LLM Dashboard**: Single-pane view with AI analysis (`http://192.168.92.145:8201/api/v1/report/dashboard`)
+- **Grafana**: Detailed metrics and historical graphs (`http://192.168.92.145:3000`)
+- **Uptime Kuma**: Service availability monitoring (`http://192.168.92.145:3001`)
+
+### 🔔 Alerting
+- Critical/High/Medium severity levels
+- Real-time alert streaming
+- Webhook, Email, SMS support (via Alertmanager)
 
 ## Quick Start
 
-### Prerequisites
-
-- Python 3.10+
-- [Ollama](https://ollama.ai) running locally
-- SSH access to target servers
-- WireGuard VPN configured (for remote networks)
-
-### Installation
+### 1. Deploy Central Brain (server045)
 
 ```bash
-cd devops-agent
+cd docker/central-brain
+docker-compose up -d
+```
 
+### 2. Deploy Edge Agents
+
+```bash
+# Deploy to all servers
+./scripts/deploy_edge_agent.sh 192.168.92.54   # server004
+./scripts/deploy_edge_agent.sh 192.168.92.141  # server041 (GPU)
+./scripts/deploy_edge_agent.sh 192.168.92.143  # server043 (GPU)
+# ... repeat for all servers
+```
+
+### 3. Setup Ollama (on server045)
+
+```bash
+ollama pull devstral
+```
+
+### 4. Access Dashboards
+
+| Service | URL | Credentials |
+|---------|-----|-------------|
+| **LLM Dashboard** | http://192.168.92.145:8201/api/v1/report/dashboard | None |
+| **Grafana** | http://192.168.92.145:3000 | admin / SidraGrafana2024! |
+| **Uptime Kuma** | http://192.168.92.145:3001 | Setup on first access |
+| **OpenObserve** | http://192.168.92.145:5080 | admin@sidra.local / SidraMonitor2024! |
+| **VictoriaMetrics** | http://192.168.92.145:8428 | None |
+
+## Network Configuration
+
+### Sidra-91 (Secondary Network)
+- 192.168.91.62 - server012 (compute)
+- 192.168.91.63 - server013 (compute)
+- 192.168.91.64 - server014 (compute)
+- 192.168.91.91 - server031 (compute)
+- 192.168.91.92 - server032 (compute)
+
+### Sidra-92 (Primary Network)
+- 192.168.92.54 - server004 (compute)
+- 192.168.92.58 - server008 (compute)
+- 192.168.92.59 - server009 (compute)
+- 192.168.92.81 - server021 (GPU: RTX 5070 Ti)
+- 192.168.92.133 - server033 (compute)
+- 192.168.92.134 - server034 (compute)
+- 192.168.92.141 - server041 (GPU: RTX 4090)
+- 192.168.92.143 - server043 (GPU: RTX 5090)
+- 192.168.92.144 - server044 (compute)
+- 192.168.92.145 - server045 (Central Brain)
+
+## API Endpoints
+
+### Report API (Port 8201)
+
+| Endpoint | Method | Description |
+|----------|--------|-------------|
+| `/health` | GET | Health check |
+| `/api/v1/report/dashboard` | GET | HTML dashboard with AI analysis |
+| `/api/v1/report/summary` | GET | Full JSON report with LLM analysis |
+| `/api/v1/report/quick` | GET | Quick text summary |
+| `/api/v1/report/network/{network}` | GET | Network-specific report |
+| `/api/v1/networks` | GET | Network configuration |
+
+#### Query Parameters (Dashboard)
+- `network` - Filter by network (e.g., `192.168.92`)
+- `role` - Filter by role (`gpu`, `compute`, `central`)
+- `severity` - Filter alerts (`critical`, `high`, `medium`)
+- `refresh` - Auto-refresh interval in seconds (default: 30)
+
+### Ingest API (Port 8200)
+
+| Endpoint | Method | Description |
+|----------|--------|-------------|
+| `/health` | GET | Health check |
+| `/api/v1/ingest` | POST | Receive metrics from edge agents |
+| `/api/v1/alerts/recent` | GET | Get recent alerts |
+
+## Edge Agent
+
+The edge agent runs on each monitored server and collects:
+
+- CPU usage (psutil)
+- Memory usage
+- Disk usage (root partition)
+- Load average (1m, 5m, 15m)
+- Network I/O (bytes sent/received)
+- GPU metrics (nvidia-smi)
+- Docker container status
+- systemd service failures
+
+### Manual Installation
+
+```bash
+# On target server
+sudo mkdir -p /opt/sidra-edge-agent
+sudo pip3 install psutil requests
+
+# Copy agent
+scp src/edge/standalone_agent.py user@server:/opt/sidra-edge-agent/agent.py
+
+# Create systemd service
+sudo cat > /etc/systemd/system/sidra-edge-agent.service << EOF
+[Unit]
+Description=Sidra Edge Agent
+After=network.target
+
+[Service]
+Type=simple
+ExecStart=/usr/bin/python3 /opt/sidra-edge-agent/agent.py
+Restart=always
+Environment=CENTRAL_BRAIN_URL=http://192.168.92.145:8200
+
+[Install]
+WantedBy=multi-user.target
+EOF
+
+sudo systemctl daemon-reload
+sudo systemctl enable --now sidra-edge-agent
+```
+
+## Stack Components
+
+| Component | Purpose | Port |
+|-----------|---------|------|
+| **VictoriaMetrics** | Time-series database (Prometheus alternative) | 8428 |
+| **OpenObserve** | Log aggregation (Loki alternative) | 5080 |
+| **Grafana** | Dashboards and visualization | 3000 |
+| **Uptime Kuma** | Simple uptime monitoring | 3001 |
+| **Alertmanager** | Alert routing | 9093 |
+| **Ingest API** | Metrics collection endpoint | 8200 |
+| **Report API** | LLM-powered dashboard | 8201 |
+| **Ollama** | Local LLM (Devstral) | 11434 |
+
+## Monitoring Thresholds
+
+| Metric | Warning | Critical |
+|--------|---------|----------|
+| CPU | 80% | 90% |
+| Memory | 85% | 95% |
+| Disk | 80% | 90% |
+| GPU Temp | 75°C | 85°C |
+| GPU Util | 90% | N/A |
+
+## Development
+
+### Project Structure
+
+```
+devops-agent/
+├── src/
+│   ├── central/
+│   │   ├── ingest_api.py      # Metrics ingestion
+│   │   └── report_api.py      # LLM dashboard
+│   ├── edge/
+│   │   └── standalone_agent.py # Edge agent
+│   └── ...
+├── docker/
+│   └── central-brain/
+│       ├── docker-compose.yml
+│       ├── Dockerfile.ingest
+│       ├── Dockerfile.report
+│       └── grafana/
+├── scripts/
+│   └── deploy_edge_agent.sh
+└── configs/
+```
+
+### Local Development
+
+```bash
 # Create virtual environment
 python -m venv venv
 source venv/bin/activate
 
 # Install dependencies
-pip install -e .
+pip install -r requirements.txt
 
-# Configure
-cp .env.example .env
-# Edit .env with your settings
+# Run report API locally
+cd src/central
+python report_api.py
 ```
-
-### Configuration
-
-Edit `.env`:
-
-```bash
-# Ollama
-OLLAMA_HOST=http://localhost:11434
-OLLAMA_MODEL=llama3.2
-
-# SSH Credentials
-SSH_USER=root
-SSH_PASSWORD=123456
-SSH_ALT_USER=sidra
-SSH_ALT_PASSWORD=Wsxk_8765
-
-# Networks to scan (your VPN networks)
-SCAN_NETWORKS=192.168.71.0/24,192.168.92.0/24,192.168.91.0/24
-```
-
-### Usage
-
-#### Full Infrastructure Discovery
-
-```bash
-# Discover and analyze entire infrastructure
-da discover
-
-# Output to specific file
-da discover --output infrastructure.json
-```
-
-#### Quick Host Scan
-
-```bash
-# Scan a single host
-da scan 192.168.71.10
-
-# Scan a network
-da network 192.168.71.0/24
-
-# Quick ping scan
-da network 192.168.71.0/24 --quick
-```
-
-#### Generate Documentation
-
-```bash
-# Generate full documentation
-da document --discover
-
-# Generate from existing data
-da document --input discovery_result.json --output docs.md
-
-# Generate daily report
-da report --type daily
-```
-
-#### Continuous Monitoring
-
-```bash
-# Monitor discovered hosts
-da monitor --hosts 192.168.71.10,192.168.71.11 --interval 60
-
-# Auto-discover and monitor
-da monitor
-```
-
-#### Start API Server
-
-```bash
-# Start the API
-da api --port 8200
-```
-
-## API Endpoints
-
-| Endpoint | Method | Description |
-|----------|--------|-------------|
-| `/health` | GET | Health check |
-| `/discover` | GET | Start full discovery |
-| `/discovery/status` | GET | Get discovery results |
-| `/scan` | POST | Scan single host |
-| `/network/scan` | POST | Scan network |
-| `/monitor/start` | POST | Start monitoring |
-| `/monitor/stop` | POST | Stop monitoring |
-| `/monitor/status` | GET | Get monitoring status |
-| `/monitor/alerts` | GET | Get active alerts |
-| `/document` | POST | Generate documentation |
-| `/document/daily` | GET | Get daily report |
-
-### Example API Usage
-
-```bash
-# Scan a host
-curl -X POST http://localhost:8200/scan \
-  -H "Content-Type: application/json" \
-  -d '{"host": "192.168.71.10"}'
-
-# Start monitoring
-curl -X POST http://localhost:8200/monitor/start \
-  -H "Content-Type: application/json" \
-  -d '{"hosts": ["192.168.71.10", "192.168.71.11"], "interval": 60}'
-
-# Get alerts
-curl http://localhost:8200/monitor/alerts
-```
-
-## Docker Deployment
-
-```bash
-# Start agent only (Ollama running separately)
-docker-compose up -d devops-agent
-
-# Start with bundled Ollama
-docker-compose --profile with-ollama up -d
-
-# Start full stack (with Redis and Grafana)
-docker-compose --profile full up -d
-```
-
-## Discovery Capabilities
-
-### Network Scanning
-- Ping sweep for live hosts
-- Port scanning (common ports + custom)
-- Service detection
-- SSH accessibility check
-
-### Server Discovery
-- OS and kernel info
-- CPU, memory, disk usage
-- Network interfaces
-- Running processes
-- Systemd services
-- Installed packages
-- User accounts
-- Cron jobs
-
-### Docker Discovery
-- Docker version and info
-- Swarm configuration
-- Running containers
-- Services and stacks
-- Networks and volumes
-- Container resource usage
-
-### Database Discovery
-- PostgreSQL: databases, connections, replication
-- MySQL/MariaDB: databases, version
-- MongoDB: databases, replica sets
-- Redis: memory, connections, replication
-
-### Storage Discovery
-- Local disk usage
-- GlusterFS volumes and peers
-- NFS exports and mounts
-- LVM volumes
-
-## Monitoring Thresholds
-
-Default thresholds (configurable):
-
-| Metric | Warning | Critical |
-|--------|---------|----------|
-| CPU | 70% | 90% |
-| Memory | 80% | 95% |
-| Disk | 80% | 95% |
 
 ## Security Notes
 
-- Credentials are stored in `.env` (never commit!)
-- SSH connections use password or key-based auth
-- API has no authentication by default (add in production)
-- Consider using SSH keys instead of passwords
-
-## Ollama Integration
-
-The agent uses Ollama for:
-- Infrastructure analysis and insights
-- Security vulnerability detection
-- Performance recommendations
-- Documentation generation
-- Architecture diagram creation
-
-Recommended models:
-- `llama3.2` - General purpose
-- `codellama` - Code analysis
-- `mistral` - Fast inference
-
-## Project Structure
-
-```
-devops-agent/
-├── src/
-│   ├── __init__.py
-│   ├── cli.py              # CLI interface
-│   ├── config.py           # Configuration
-│   ├── agents/
-│   │   ├── infrastructure_agent.py
-│   │   ├── documentation_agent.py
-│   │   └── monitoring_agent.py
-│   ├── discovery/
-│   │   ├── network.py      # Network scanning
-│   │   ├── server.py       # Server discovery
-│   │   ├── docker.py       # Docker discovery
-│   │   ├── database.py     # Database discovery
-│   │   ├── storage.py      # Storage discovery
-│   │   └── services.py     # Service discovery
-│   ├── api/
-│   │   └── main.py         # FastAPI app
-│   └── utils/
-│       ├── ssh.py          # SSH utilities
-│       └── logger.py
-├── configs/
-│   └── servers.yml         # Server inventory
-├── output/                 # Discovery results
-├── Dockerfile
-├── docker-compose.yml
-└── pyproject.toml
-```
+- Default credentials should be changed in production
+- Use environment variables for secrets
+- Consider adding authentication to APIs
+- Use HTTPS in production
+- Restrict network access to monitoring ports
 
 ## License
 

@@ -1,0 +1,74 @@
+global:
+  resolve_timeout: 5m
+  # SMTP settings for email alerts
+  smtp_smarthost: 'smtp.minesidra.com:25'
+  smtp_from: 'alerts@minesidra.com'
+  smtp_auth_username: 'noreply@minesidra.com'
+  smtp_auth_password: '123456789'
+  smtp_require_tls: false
+
+route:
+  group_by: ['alertname', 'severity', 'host']
+  group_wait: 30s
+  group_interval: 5m
+  repeat_interval: 4h
+  receiver: 'default-receiver'
+  routes:
+    # Critical alerts - immediate notification to all channels
+    - match:
+        severity: critical
+      receiver: 'critical-alerts'
+      group_wait: 0s
+      repeat_interval: 1h
+
+    # High priority alerts
+    - match:
+        severity: high
+      receiver: 'high-alerts'
+      group_wait: 1m
+      repeat_interval: 2h
+
+    # Normal alerts - batched
+    - match:
+        severity: normal
+      receiver: 'default-receiver'
+      group_wait: 5m
+
+receivers:
+  - name: 'default-receiver'
+    email_configs:
+      - to: 'devops@sidra.local'
+        send_resolved: true
+
+  - name: 'critical-alerts'
+    email_configs:
+      - to: 'devops@sidra.local,oncall@sidra.local'
+        send_resolved: true
+    webhook_configs:
+      - url: '${SLACK_WEBHOOK_URL}'
+        send_resolved: true
+      # SMS gateway webhook (configure with your provider)
+      # - url: '${SMS_GATEWAY_URL}'
+      #   send_resolved: false
+
+  - name: 'high-alerts'
+    email_configs:
+      - to: 'devops@sidra.local'
+        send_resolved: true
+    webhook_configs:
+      - url: '${SLACK_WEBHOOK_URL}'
+        send_resolved: true
+
+inhibit_rules:
+  # Inhibit lower severity alerts when critical is firing
+  - source_match:
+      severity: 'critical'
+    target_match:
+      severity: 'high'
+    equal: ['alertname', 'host']
+
+  - source_match:
+      severity: 'critical'
+    target_match:
+      severity: 'normal'
+    equal: ['alertname', 'host']

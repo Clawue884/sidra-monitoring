@@ -1,0 +1,42 @@
+version: '3.8'
+
+# Sidra Edge Agent
+# Deploy on each monitored server
+
+services:
+  edge-agent:
+    image: sidra/edge-agent:latest
+    container_name: sidra-edge-agent
+    restart: unless-stopped
+    network_mode: host  # Access host network metrics
+    pid: host  # Access host processes
+    privileged: true  # Required for full system access
+    environment:
+      - SIDRA_CENTRAL_URL=${CENTRAL_URL:-http://192.168.92.145:8200}
+      - SIDRA_AGENT_ID=${HOSTNAME}
+      - SIDRA_LOG_LEVEL=${LOG_LEVEL:-INFO}
+    volumes:
+      # System access
+      - /proc:/host/proc:ro
+      - /sys:/host/sys:ro
+      - /var/run/docker.sock:/var/run/docker.sock:ro
+      # Logs access
+      - /var/log:/var/log:ro
+      # Persistent data
+      - agent-data:/var/lib/sidra-agent
+      - agent-logs:/var/log/sidra-agent
+      # NVIDIA GPU access (optional)
+      - /usr/bin/nvidia-smi:/usr/bin/nvidia-smi:ro
+      - /usr/lib/x86_64-linux-gnu/libnvidia-ml.so.1:/usr/lib/x86_64-linux-gnu/libnvidia-ml.so.1:ro
+    deploy:
+      resources:
+        limits:
+          cpus: '0.5'
+          memory: 256M
+        reservations:
+          cpus: '0.1'
+          memory: 64M
+
+volumes:
+  agent-data:
+  agent-logs:

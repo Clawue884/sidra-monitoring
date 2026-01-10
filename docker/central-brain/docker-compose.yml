@@ -1,0 +1,174 @@
+version: '3.8'
+
+# Sidra Infrastructure Monitoring - Central Brain
+# Deploy on server045 (192.168.92.145)
+
+services:
+  # ============================================
+  # VictoriaMetrics - Time Series Database
+  # More efficient than Prometheus, PromQL compatible
+  # ============================================
+  victoriametrics:
+    image: victoriametrics/victoria-metrics:v1.96.0
+    container_name: sidra-victoriametrics
+    restart: unless-stopped
+    ports:
+      - "8428:8428"
+    volumes:
+      - vm-data:/storage
+    command:
+      - '-storageDataPath=/storage'
+      - '-retentionPeriod=90d'
+      - '-httpListenAddr=:8428'
+      - '-selfScrapeInterval=10s'
+      - '-search.latencyOffset=0s'
+    healthcheck:
+      test: ["CMD", "wget", "-q", "-O-", "http://localhost:8428/health"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+    networks:
+      - monitoring
+
+  # ============================================
+  # OpenObserve - Log Aggregation
+  # Lightweight alternative to Loki/Elasticsearch
+  # ============================================
+  openobserve:
+    image: public.ecr.aws/zinclabs/openobserve:v0.10.0
+    container_name: sidra-openobserve
+    restart: unless-stopped
+    ports:
+      - "5080:5080"
+    volumes:
+      - openobserve-data:/data
+    environment:
+      - ZO_DATA_DIR=/data
+      - ZO_ROOT_USER_EMAIL=${OO_ROOT_EMAIL:-admin@sidra.local}
+      - ZO_ROOT_USER_PASSWORD=${OO_ROOT_PASSWORD:-SidraMonitor2024!}
+      - ZO_COMPACT_ENABLED=true
+      - ZO_TELEMETRY_ENABLED=false
+    healthcheck:
+      test: ["CMD", "wget", "-q", "-O-", "http://localhost:5080/healthz"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+    networks:
+      - monitoring
+
+  # ============================================
+  # Grafana - Dashboards & Visualization
+  # ============================================
+  grafana:
+    image: grafana/grafana:10.3.0
+    container_name: sidra-grafana
+    restart: unless-stopped
+    ports:
+      - "3000:3000"
+    volumes:
+      - grafana-data:/var/lib/grafana
+      - ./grafana/provisioning:/etc/grafana/provisioning
+      - ./grafana/dashboards:/var/lib/grafana/dashboards
+    environment:
+      - GF_SECURITY_ADMIN_USER=${GRAFANA_USER:-admin}
+      - GF_SECURITY_ADMIN_PASSWORD=${GRAFANA_PASSWORD:-SidraGrafana2024!}
+      - GF_USERS_ALLOW_SIGN_UP=false
+      - GF_SERVER_ROOT_URL=http://192.168.92.145:3000
+      - GF_INSTALL_PLUGINS=grafana-clock-panel,grafana-piechart-panel
+    depends_on:
+      - victoriametrics
+      - openobserve
+    healthcheck:
+      test: ["CMD-SHELL", "wget -q -O- http://localhost:3000/api/health | grep -q 'ok'"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+    networks:
+      - monitoring
+
+  # ============================================
+  # Uptime Kuma - Simple Status Monitoring
+  # ============================================
+  uptime-kuma:
+    image: louislam/uptime-kuma:1.23.11
+    container_name: sidra-uptime-kuma
+    restart: unless-stopped
+    ports:
+      - "3001:3001"
+    volumes:
+      - uptime-kuma-data:/app/data
+    healthcheck:
+      test: ["CMD", "wget", "-q", "-O-", "http://localhost:3001/"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+    networks:
+      - monitoring
+
+  # ============================================
+  # Central Ingest API - Receives metrics from Edge Agents
+  # ============================================
+  ingest-api:
+    build:
+      context: ../..
+      dockerfile: docker/central-brain/Dockerfile.ingest
+    container_name: sidra-ingest-api
+    restart: unless-stopped
+    ports:
+      - "8200:8200"
+    environment:
+      - VICTORIAMETRICS_URL=http://victoriametrics:8428
+      - OPENOBSERVE_URL=http://openobserve:5080
+      - OPENOBSERVE_USER=${OO_ROOT_EMAIL:-admin@sidra.local}
+      - OPENOBSERVE_PASSWORD=${OO_ROOT_PASSWORD:-SidraMonitor2024!}
+      - OLLAMA_HOST=http://host.docker.internal:11434
+      - OLLAMA_MODEL=${LLM_MODEL:-devstral}
+      - LOG_LEVEL=INFO
+    volumes:
+      - ingest-data:/app/data
+    depends_on:
+      - victoriametrics
+      - openobserve
+    extra_hosts:
+      - "host.docker.internal:host-gateway"
+    networks:
+      - monitoring
+
+  # ============================================
+  # Alertmanager - Alert Routing
+  # ============================================
+  alertmanager:
+    image: prom/alertmanager:v0.27.0
+    container_name: sidra-alertmanager
+    restart: unless-stopped
+    ports:
+      - "9093:9093"
+    volumes:
+      - ./alertmanager/alertmanager.yml:/etc/alertmanager/alertmanager.yml
+      - alertmanager-data:/alertmanager
+    command:
+      - '--config.file=/etc/alertmanager/alertmanager.yml'
+      - '--storage.path=/alertmanager'
+    networks:
+      - monitoring
+
+volumes:
+  vm-data:
+    driver: local
+  openobserve-data:
+    driver: local
+  grafana-data:
+    driver: local
+  uptime-kuma-data:
+    driver: local
+  ingest-data:
+    driver: local
+  alertmanager-data:
+    driver: local
+
+networks:
+  monitoring:
+    driver: bridge
+    ipam:
+      config:
+        - subnet: 172.20.0.0/16
