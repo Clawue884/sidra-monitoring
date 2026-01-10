@@ -1,0 +1,75 @@
+[project]
+name = "devops-agent"
+version = "1.0.0"
+description = "AI-powered DevOps agent for infrastructure discovery, monitoring, and documentation"
+readme = "README.md"
+requires-python = ">=3.10"
+dependencies = [
+    # SSH and remote execution
+    "paramiko>=3.4.0",
+    "asyncssh>=2.14.0",
+    "fabric>=3.2.0",
+
+    # Network scanning
+    "python-nmap>=0.7.1",
+    "scapy>=2.5.0",
+    "netaddr>=0.9.0",
+    "dnspython>=2.4.0",
+
+    # Docker
+    "docker>=7.0.0",
+
+    # Database clients
+    "asyncpg>=0.29.0",
+    "aiomysql>=0.2.0",
+    "motor>=3.3.0",
+    "redis>=5.0.0",
+
+    # HTTP and API
+    "httpx>=0.25.0",
+    "aiohttp>=3.9.0",
+    "fastapi>=0.104.0",
+    "uvicorn>=0.24.0",
+
+    # Data processing
+    "pydantic>=2.0.0",
+    "pydantic-settings>=2.0.0",
+    "jinja2>=3.1.0",
+    "pyyaml>=6.0.0",
+    "toml>=0.10.0",
+
+    # CLI and display
+    "typer>=0.9.0",
+    "rich>=13.0.0",
+
+    # Scheduling and tasks
+    "apscheduler>=3.10.0",
+    "celery>=5.3.0",
+
+    # Ollama integration
+    "ollama>=0.1.0",
+
+    # Utilities
+    "python-dotenv>=1.0.0",
+    "aiofiles>=23.0.0",
+    "cryptography>=41.0.0",
+]
+
+[project.optional-dependencies]
+dev = [
+    "pytest>=7.0.0",
+    "pytest-asyncio>=0.21.0",
+    "black>=23.0.0",
+    "ruff>=0.1.0",
+]
+
+[project.scripts]
+devops-agent = "src.cli:app"
+da = "src.cli:app"
+
+[build-system]
+requires = ["hatchling"]
+build-backend = "hatchling.build"
+
+[tool.hatch.build.targets.wheel]
+packages = ["src"]

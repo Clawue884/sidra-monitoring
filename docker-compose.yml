@@ -1,0 +1,89 @@
+version: '3.8'
+
+services:
+  devops-agent:
+    build: .
+    container_name: devops-agent
+    restart: unless-stopped
+    ports:
+      - "8200:8200"
+    environment:
+      - OLLAMA_HOST=${OLLAMA_HOST:-http://host.docker.internal:11434}
+      - OLLAMA_MODEL=${OLLAMA_MODEL:-llama3.2}
+      - SSH_USER=${SSH_USER:-root}
+      - SSH_PASSWORD=${SSH_PASSWORD:-123456}
+      - SSH_ALT_USER=${SSH_ALT_USER:-sidra}
+      - SSH_ALT_PASSWORD=${SSH_ALT_PASSWORD:-Wsxk_8765}
+      - SCAN_NETWORKS=${SCAN_NETWORKS:-192.168.71.0/24,192.168.92.0/24,192.168.91.0/24}
+      - LOG_LEVEL=${LOG_LEVEL:-INFO}
+    volumes:
+      - ./output:/app/output
+      - ./data:/app/data
+      - ./logs:/app/logs
+      - ./configs:/app/configs:ro
+      - ~/.ssh:/home/devops/.ssh:ro  # SSH keys for passwordless auth
+    extra_hosts:
+      - "host.docker.internal:host-gateway"
+    networks:
+      - devops-net
+    cap_add:
+      - NET_RAW  # Required for ping/nmap
+
+  # Ollama (if not running separately)
+  ollama:
+    image: ollama/ollama:latest
+    container_name: ollama-devops
+    restart: unless-stopped
+    ports:
+      - "11434:11434"
+    volumes:
+      - ollama-data:/root/.ollama
+    deploy:
+      resources:
+        reservations:
+          devices:
+            - driver: nvidia
+              count: all
+              capabilities: [gpu]
+    profiles:
+      - with-ollama
+    networks:
+      - devops-net
+
+  # Redis for caching and task queue
+  redis:
+    image: redis:alpine
+    container_name: devops-redis
+    restart: unless-stopped
+    volumes:
+      - redis-data:/data
+    networks:
+      - devops-net
+    profiles:
+      - full
+
+  # Grafana for visualization
+  grafana:
+    image: grafana/grafana:latest
+    container_name: devops-grafana
+    restart: unless-stopped
+    ports:
+      - "3100:3000"
+    environment:
+      - GF_SECURITY_ADMIN_PASSWORD=admin
+      - GF_USERS_ALLOW_SIGN_UP=false
+    volumes:
+      - grafana-data:/var/lib/grafana
+    networks:
+      - devops-net
+    profiles:
+      - full
+
+volumes:
+  ollama-data:
+  redis-data:
+  grafana-data:
+
+networks:
+  devops-net:
+    driver: bridge

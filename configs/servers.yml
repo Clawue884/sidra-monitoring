@@ -1,0 +1,58 @@
+# Server Configuration for DevOps Agent
+# This file contains the server inventory for infrastructure discovery
+
+networks:
+  - name: production
+    cidr: 192.168.71.0/24
+    description: Main production network
+
+  - name: management
+    cidr: 192.168.92.0/24
+    description: Management network
+
+  - name: services
+    cidr: 192.168.91.0/24
+    description: Services network
+
+# Default credentials (will be used if server-specific not provided)
+defaults:
+  ssh_port: 22
+  ssh_user: root
+  ssh_password: "123456"
+  alt_user: sidra
+  alt_password: "Wsxk_8765"
+  timeout: 30
+
+# VPN Configuration
+vpn:
+  type: wireguard
+  allowed_ips:
+    - 192.168.71.0/24
+    - 192.168.92.0/24
+    - 192.168.91.0/24
+
+# Server Groups
+groups:
+  managers:
+    description: Docker Swarm manager nodes
+    servers: []  # Will be discovered
+
+  workers:
+    description: Docker Swarm worker nodes
+    servers: []
+
+  databases:
+    description: Database servers
+    servers: []
+
+  storage:
+    description: Storage/GlusterFS nodes
+    servers: []
+
+# Known servers (optional, can be auto-discovered)
+servers: []
+  # Example:
+  # - name: manager1
+  #   host: 192.168.71.10
+  #   user: root
+  #   groups: [managers]
