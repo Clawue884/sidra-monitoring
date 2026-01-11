@@ -1,0 +1,23 @@
+# AutonomousOps Configuration
+
+ollama:
+  url: "http://localhost:11434/api/generate"
+  model: "devstral"
+
+thresholds:
+  cpu:
+    warning: 80
+    critical: 90
+  memory:
+    warning: 85
+    critical: 95
+  gpu_temp:
+    warning: 75
+    critical: 85
+
+notifications:
+  webhook_url: "https://example.com/webhook"
+
+decision_engine:
+  escalate_on: ["critical"]
+  prioritize_on: ["high"]
